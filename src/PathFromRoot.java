@@ -12,6 +12,27 @@ public class PathFromRoot {
         // only use this method
         // no imports
         // only use String class and BinNode class
+
+        if (str == null) {
+            return true;
+        }
+
+        // if the root is not the same as the beginning of the string --> no need to continue;
+        if (root.getData() != str.charAt(0)) {
+            return false;
+        }
+
+        // cut the first char of the string and check on each side
+
+        if (doesPathExist(root.getLeft(), str.substring(1))) {
+            return true;
+        }
+        if (doesPathExist(root.getRight(), str.substring(1))) {
+            return true;
+        }
+
+        // only if both sides return false
+        return false;
     }
 
 }
