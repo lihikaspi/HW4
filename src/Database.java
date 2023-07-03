@@ -1,12 +1,24 @@
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 
 public class Database {
     private Map<String, String> data;
+    private final int k;
+    private Set<Thread> readers;
+
+    // locks
+    private static ReentrantLock readLock;
+    private static ReentrantLock writeLock;
 
     public Database(int maxNumOfReaders) {
         data = new HashMap<>();  // Note: You may add fields to the class and initialize them in here. Do not add parameters!
+        k = maxNumOfReaders;
+        readLock = new ReentrantLock();
+        writeLock = new ReentrantLock();
     }
 
     public void put(String key, String value) {
@@ -26,6 +38,8 @@ public class Database {
 
         // return true if can read
         // return false if can't
+
+        return readLock.getHoldCount() < k && writeLock.getHoldCount() == 0;
     }
 
     public void readAcquire() {
@@ -34,6 +48,17 @@ public class Database {
         // used before reading from database
         // if another thread writes to database --> wait
         // if max number of readers --> wait
+
+
+        while(!readTryAcquire()) {
+            try {
+                wait();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        readLock.lock();
     }
 
     public void readRelease() {
@@ -44,6 +69,8 @@ public class Database {
 
         // if thread uses method but doesn't read from database
         // --> throw IllegalMonitorStateException ("Illegal read release attempt") --unchecked
+
+
     }
 
     public void writeAcquire() {
