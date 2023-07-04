@@ -54,7 +54,7 @@ public class Database {
             try {
                 wait();
             } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+                // dvir said we can leave it empty
             }
         }
 
