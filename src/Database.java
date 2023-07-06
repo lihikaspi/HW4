@@ -1,4 +1,5 @@
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.locks.Lock;
@@ -9,16 +10,22 @@ public class Database {
     private Map<String, String> data;
     private final int k;
     private Set<Thread> readers;
+    private Thread writer;
 
     // locks
     private static ReentrantLock readLock;
     private static ReentrantLock writeLock;
+
+    private static Lock lock;
 
     public Database(int maxNumOfReaders) {
         data = new HashMap<>();  // Note: You may add fields to the class and initialize them in here. Do not add parameters!
         k = maxNumOfReaders;
         readLock = new ReentrantLock();
         writeLock = new ReentrantLock();
+        lock = new ReentrantLock();
+        readers = new HashSet<>();
+        writer = null;
     }
 
     public void put(String key, String value) {
@@ -29,76 +36,84 @@ public class Database {
         return data.get(key);
     }
 
-    public boolean readTryAcquire() {
-        // TODO: Add your code here...
+    public boolean checkRead() {
+        try {
+            lock.lock();
+            return readLock.getHoldCount() < k && writeLock.getHoldCount() == 0;
+        } finally {
+            lock.unlock();
+        }
+    }
 
-        // used before reading from database
-        // identical to readAcquire but:
-        // doesn't make a thread wait
-
-        // return true if can read
-        // return false if can't
-
-        return readLock.getHoldCount() < k && writeLock.getHoldCount() == 0;
+    public boolean checkWrite() {
+        try {
+            lock.lock();
+            readers.add(Thread.currentThread());
+            return readLock.getHoldCount() == 0 && writeLock.getHoldCount() == 0;
+        } finally {
+            lock.unlock();
+        }
     }
 
     public void readAcquire() {
-        // TODO: Add your code here...
-
-        // used before reading from database
-        // if another thread writes to database --> wait
-        // if max number of readers --> wait
-
-
-        while(!readTryAcquire()) {
+        while(!checkRead()) {
             try {
                 wait();
-            } catch (InterruptedException e) {
-                // dvir said we can leave it empty
-            }
+            } catch (InterruptedException e) {}
         }
 
+        readers.add(Thread.currentThread());
         readLock.lock();
     }
 
+    public boolean readTryAcquire() {
+        if (checkRead()) {
+            readLock.lock();
+            readers.add(Thread.currentThread());
+            return true;
+        }
+        return false;
+    }
+
     public void readRelease() {
-        // TODO: Add your code here...
-
-        // used after reading from database
-        // marks that thread finished reading
-
-        // if thread uses method but doesn't read from database
-        // --> throw IllegalMonitorStateException ("Illegal read release attempt") --unchecked
-
-
+        try {
+            if (!(readers.contains(Thread.currentThread())))
+                throw new IllegalMonitorStateException("Illegal read release attempt");
+            readers.remove(Thread.currentThread());
+            readLock.unlock();
+        } catch (IllegalMonitorStateException e) {
+            System.out.println(e.getMessage());
+        }
     }
 
     public void writeAcquire() {
-       // TODO: Add your code here...
+        while(!checkWrite()) {
+            try {
+                wait();
+            } catch (InterruptedException e) {}
+        }
 
-        // used before writing to database
-        // if another thread writes to database --> wait
-        // if another thread reads from database --> wait
+        writer = Thread.currentThread();
+        writeLock.lock();
     }
 
     public boolean writeTryAcquire() {
-        // TODO: Add your code here...
-
-        // used before writing to database
-        // identical to writeAcquire but:
-        // doesn't make a thread wait
-
-        // return true if can write
-        // return false if can't
+        if (checkWrite()) {
+            writeLock.lock();
+            writer = Thread.currentThread();
+            return true;
+        }
+        return false;
     }
 
     public void writeRelease() {
-        // TODO: Add your code here...
-
-        // used after writing to database
-        // marks that thread finished writing
-
-        // if thread uses method but doesn't write to database
-        // --> throw IllegalMonitorStateException ("Illegal write release attempt") --unchecked
+        try {
+            if (!Thread.currentThread().equals(writer))
+                throw new IllegalMonitorStateException("Illegal write release attempt");
+            writer = null;
+            writeLock.unlock();
+        } catch (IllegalMonitorStateException e) {
+            System.out.println(e.getMessage());
+        }
     }
 }
