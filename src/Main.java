@@ -7,7 +7,7 @@ public class Main {
     private static void testPartA() {
         System.out.println("Testing part A...");
         testPartA1();
-        //testPartA2();
+        testPartA2();
     }
 
     private static void testPartA1() {

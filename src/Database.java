@@ -10,7 +10,8 @@ public class Database {
     private Map<String, String> data;
     private final int k;
     private Set<Thread> readers;
-    private Thread writer;
+    private Set<Thread> writers;
+    private long writer;
 
     // locks
     private static ReentrantLock readLock;
@@ -25,7 +26,8 @@ public class Database {
         writeLock = new ReentrantLock();
         lock = new ReentrantLock();
         readers = new HashSet<>();
-        writer = null;
+        writer = -1;
+        writers = new HashSet<>();
     }
 
     public void put(String key, String value) {
@@ -76,14 +78,10 @@ public class Database {
     }
 
     public void readRelease() {
-        try {
-            if (!(readers.contains(Thread.currentThread())))
-                throw new IllegalMonitorStateException("Illegal read release attempt");
-            readers.remove(Thread.currentThread());
-            readLock.unlock();
-        } catch (IllegalMonitorStateException e) {
-            System.out.println(e.getMessage());
-        }
+        if (!(readers.contains(Thread.currentThread())))
+            throw new IllegalMonitorStateException("Illegal read release attempt");
+        readers.remove(Thread.currentThread());
+        readLock.unlock();
     }
 
     public void writeAcquire() {
@@ -93,27 +91,31 @@ public class Database {
             } catch (InterruptedException e) {}
         }
 
-        writer = Thread.currentThread();
+        writers.add(Thread.currentThread());
+        writer = Thread.currentThread().getId();
         writeLock.lock();
     }
 
     public boolean writeTryAcquire() {
         if (checkWrite()) {
             writeLock.lock();
-            writer = Thread.currentThread();
+            writers.add(Thread.currentThread());
+            writer = Thread.currentThread().getId();
             return true;
         }
         return false;
     }
 
     public void writeRelease() {
-        try {
-            if (!Thread.currentThread().equals(writer))
-                throw new IllegalMonitorStateException("Illegal write release attempt");
-            writer = null;
-            writeLock.unlock();
-        } catch (IllegalMonitorStateException e) {
-            System.out.println(e.getMessage());
-        }
+        System.out.println(writeLock.getHoldCount());
+        if (writeLock.getHoldCount() == 0)
+            throw new IllegalMonitorStateException("Illegal write release attempt");
+        long current = Thread.currentThread().getId();
+        //if (writer != current)
+        if(writers.contains(Thread.currentThread()))
+            throw new IllegalMonitorStateException("Illegal write release attempt");
+        writer = -1;
+        writers.remove(Thread.currentThread());
+        writeLock.unlock();
     }
 }
