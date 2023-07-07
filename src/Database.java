@@ -2,6 +2,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -9,25 +10,19 @@ import java.util.concurrent.locks.ReentrantLock;
 public class Database {
     private Map<String, String> data;
     private final int k;
-    private Set<Thread> readers;
-    private Set<Thread> writers;
+    private Set<Long> readers;
     private long writer;
-
-    // locks
-    private static ReentrantLock readLock;
-    private static ReentrantLock writeLock;
+    private Condition cond;
 
     private static Lock lock;
 
     public Database(int maxNumOfReaders) {
         data = new HashMap<>();  // Note: You may add fields to the class and initialize them in here. Do not add parameters!
         k = maxNumOfReaders;
-        readLock = new ReentrantLock();
-        writeLock = new ReentrantLock();
         lock = new ReentrantLock();
         readers = new HashSet<>();
         writer = -1;
-        writers = new HashSet<>();
+        cond = this.lock.newCondition();
     }
 
     public void put(String key, String value) {
@@ -41,7 +36,7 @@ public class Database {
     public boolean checkRead() {
         try {
             lock.lock();
-            return readLock.getHoldCount() < k && writeLock.getHoldCount() == 0;
+            return readers.size() < k && writer == -1;
         } finally {
             lock.unlock();
         }
@@ -50,72 +45,94 @@ public class Database {
     public boolean checkWrite() {
         try {
             lock.lock();
-            readers.add(Thread.currentThread()); //?????????????
-            return readLock.getHoldCount() == 0 && writeLock.getHoldCount() == 0;
+            return readers.size() == 0 && writer == -1;
         } finally {
             lock.unlock();
         }
     }
 
     public void readAcquire() {
-        while(!checkRead()) {
-            try {
-                wait();
-            } catch (InterruptedException e) {}
+        try{
+            lock.lock();
+            while(!checkRead()) {
+                cond.await();
+            }
+            readers.add(Thread.currentThread().getId());
         }
-
-        readers.add(Thread.currentThread());
-        readLock.lock();
+        catch (InterruptedException e) {}
+        finally {
+            lock.unlock();
+        }
     }
 
     public boolean readTryAcquire() {
-        if (checkRead()) {
-            readLock.lock();
-            readers.add(Thread.currentThread());
-            return true;
+        try{
+            lock.lock();
+            if (checkRead()) {
+                readers.add(Thread.currentThread().getId());
+                return true;
+            }
+            return false;
         }
-        return false;
+        finally {
+            lock.unlock();
+        }
     }
 
     public void readRelease() {
-        if (!(readers.contains(Thread.currentThread())))
-            throw new IllegalMonitorStateException("Illegal read release attempt");
-        readers.remove(Thread.currentThread());
-        readLock.unlock();
+        try {
+            lock.lock();
+            if (!(readers.contains(Thread.currentThread().getId())))
+                throw new IllegalMonitorStateException("Illegal read release attempt");
+            readers.remove(Thread.currentThread().getId());
+            cond.signal();
+        }
+        finally {
+            lock.unlock();
+        }
     }
 
     public void writeAcquire() {
-        while(!checkWrite()) {
-            try {
-                wait();
-            } catch (InterruptedException e) {}
+        try {
+            lock.lock();
+            while(!checkWrite()) {
+                cond.await();
+            }
+            writer = Thread.currentThread().getId();
         }
-
-        writers.add(Thread.currentThread());
-        writer = Thread.currentThread().getId();
-        writeLock.lock();
+        catch (InterruptedException e) {}
+        finally {
+            lock.unlock();
+        }
     }
 
     public boolean writeTryAcquire() {
-        if (checkWrite()) {
-            writeLock.lock();
-            writers.add(Thread.currentThread());
-            writer = Thread.currentThread().getId();
-            return true;
+        try {
+            lock.lock();
+            if (checkWrite()) {
+                writer = Thread.currentThread().getId();
+                return true;
+            }
+            return false;
         }
-        return false;
+        finally {
+            lock.unlock();
+        }
     }
 
     public void writeRelease() {
-        //if (writeLock.getHoldCount() == 0)
-        //   throw new IllegalMonitorStateException("Illegal write release attempt");
-        writer = Thread.currentThread().getId();
-        long current = Thread.currentThread().getId();
-        if (writer != current)
-        //if(writers.contains(Thread.currentThread()))
-            throw new IllegalMonitorStateException("Illegal write release attempt");
-        writer = -1;
-        writers.remove(Thread.currentThread());
-        writeLock.unlock();
+        try {
+            lock.lock();
+            //writer = Thread.currentThread().getId();
+            long current = Thread.currentThread().getId();
+            if (writer != current){
+                throw new IllegalMonitorStateException("Illegal write release attempt");
+            }
+            writer = -1;
+            cond.signal();
+        }
+        finally {
+            lock.unlock();
+        }
     }
 }
