@@ -50,7 +50,7 @@ public class Database {
     public boolean checkWrite() {
         try {
             lock.lock();
-            readers.add(Thread.currentThread());
+            readers.add(Thread.currentThread()); //?????????????
             return readLock.getHoldCount() == 0 && writeLock.getHoldCount() == 0;
         } finally {
             lock.unlock();
@@ -107,12 +107,12 @@ public class Database {
     }
 
     public void writeRelease() {
-        System.out.println(writeLock.getHoldCount());
-        if (writeLock.getHoldCount() == 0)
-            throw new IllegalMonitorStateException("Illegal write release attempt");
+        //if (writeLock.getHoldCount() == 0)
+        //   throw new IllegalMonitorStateException("Illegal write release attempt");
+        writer = Thread.currentThread().getId();
         long current = Thread.currentThread().getId();
-        //if (writer != current)
-        if(writers.contains(Thread.currentThread()))
+        if (writer != current)
+        //if(writers.contains(Thread.currentThread()))
             throw new IllegalMonitorStateException("Illegal write release attempt");
         writer = -1;
         writers.remove(Thread.currentThread());
