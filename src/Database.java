@@ -6,18 +6,19 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-
+/**
+ * This class represents a database
+ */
 public class Database {
     private Map<String, String> data;
     private final int k;
-    private Set<Long> readers;
-    private long writer;
-    private Condition cond;
-
+    private Set<Long> readers;  //Set of reader IDs
+    private long writer;  //Current writer thread ID
+    private Condition cond;  //To signal waiting threads
     private static Lock lock;
 
     public Database(int maxNumOfReaders) {
-        data = new HashMap<>();  // Note: You may add fields to the class and initialize them in here. Do not add parameters!
+        data = new HashMap<>();
         k = maxNumOfReaders;
         lock = new ReentrantLock();
         readers = new HashSet<>();
@@ -33,6 +34,10 @@ public class Database {
         return data.get(key);
     }
 
+    /**
+     * Checks the condition for being able to read from database
+     * @return bool is able to read
+     */
     public boolean checkRead() {
         try {
             lock.lock();
@@ -42,6 +47,10 @@ public class Database {
         }
     }
 
+    /**
+     * Checks the condition for being able to write to database
+     * @return bool is able to write
+     */
     public boolean checkWrite() {
         try {
             lock.lock();
@@ -51,6 +60,9 @@ public class Database {
         }
     }
 
+    /**
+     * Happens before thread reads from the database. Waits until it is able to read
+     */
     public void readAcquire() {
         try{
             lock.lock();
@@ -65,6 +77,10 @@ public class Database {
         }
     }
 
+    /**
+     * Happens before thread reads from the database. Does not wait until it is able to read
+     * @return bool is the thread able to read from database
+     */
     public boolean readTryAcquire() {
         try{
             lock.lock();
@@ -79,6 +95,10 @@ public class Database {
         }
     }
 
+    /**
+     * Happens after thread reads from the database
+     * Throws exception if thread using the function was not reading from it
+     */
     public void readRelease() {
         try {
             lock.lock();
@@ -92,6 +112,9 @@ public class Database {
         }
     }
 
+    /**
+     * Happens before thread writes to the database. Waits until it is able to write
+     */
     public void writeAcquire() {
         try {
             lock.lock();
@@ -106,6 +129,10 @@ public class Database {
         }
     }
 
+    /**
+     * Happens before thread writes to the database. Waits until it is able to write
+     * @return bool is the thread able to write to database
+     */
     public boolean writeTryAcquire() {
         try {
             lock.lock();
@@ -120,10 +147,13 @@ public class Database {
         }
     }
 
+    /**
+     * Happens after thread writes to the database
+     * Throws exception if thread using the function was not the one writing to it
+     */
     public void writeRelease() {
         try {
             lock.lock();
-            //writer = Thread.currentThread().getId();
             long current = Thread.currentThread().getId();
             if (writer != current){
                 throw new IllegalMonitorStateException("Illegal write release attempt");

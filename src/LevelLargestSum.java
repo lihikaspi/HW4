@@ -1,18 +1,13 @@
 import java.util.ArrayDeque;
 public class LevelLargestSum {
+    /**
+     * Finds the level of the tree with the largest sum of numbers
+     * @param root The root node of the tree
+     * @return number of level with the largest sum
+     */
     public static int getLevelWithLargestSum(BinNode<Integer> root) {
 
-        // find the level with the largest sum and return level
-        // if more than one level has the same sum --> return the first level out of all (closest to root)
-        // if root is empty --> return -1
-
-        // don't have to use recursion
-        // can use loops
-        // only use this method
-        // no imports
-        // only use BinNode class and ArrayDeque class
-
-        if (root == null){
+        if (root == null){  //Case where tree is empty
             return -1;
         }
 
@@ -23,16 +18,16 @@ public class LevelLargestSum {
 
         queue.add(root);
 
-        while(!queue.isEmpty()){
-            int size = queue.size();
+        while(!queue.isEmpty()){  //Runs until all nodes are visited
+            int size = queue.size();  //Number of elements in level
             int sum = 0;
             currentLvl++;
 
             for(int i = size; size > 0; size--){
-                BinNode<Integer> current = queue.poll();
+                BinNode<Integer> current = queue.poll();  //Removes element from tree
                 sum += current.getData();
 
-                if (current.getLeft() != null)
+                if (current.getLeft() != null)  //Adds nodes of next level
                     queue.add(current.getLeft());
                 if (current.getRight() != null)
                     queue.add(current.getRight());
